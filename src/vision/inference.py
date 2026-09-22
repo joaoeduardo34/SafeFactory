@@ -10,7 +10,6 @@ def run_inference(source_path=0):
     source_path: 0 para WebCam, ou string com o caminho do vídeo de teste.
     """
     # 1. Carrega o modelo YOLOv8 padrão (Treinado em 80 classes do COCO)
-    # Em produção, este modelo seria substituído pelo modelo treinado em classes (Helmet, Vest, etc.)
     print("[INFO] Carregando modelo YOLOv8...")
     model = YOLO("models/yolov8n.pt") 
     
@@ -33,6 +32,7 @@ def run_inference(source_path=0):
         # Variáveis de controle para simulação da regra de negócio do EPI
         detectou_pessoa = False
         detectou_epi = False
+        conf = 0.0  # <--- CORREÇÃO: Inicializa a variável para evitar o UnboundLocalError
 
         # 4. Varre os objetos detectados
         for box in results.boxes:
@@ -44,8 +44,6 @@ def run_inference(source_path=0):
             x1, y1, x2, y2 = map(int, box.xyxy[0])
 
             # Mapeamento lógico de classes (Simulação baseada no dataset COCO padrão)
-            # No COCO: class 0 = person, class 1 = bicycle, class 2 = car...
-            # Para o seu projeto treinado, as classes seriam: 'Person', 'Helmet', 'Vest', 'Goggles'
             if label == "person" and conf > 0.5:
                 detectou_pessoa = True
                 # Desenha retângulo azul para pessoas
@@ -53,7 +51,7 @@ def run_inference(source_path=0):
                 cv2.putText(frame, f"Operador {conf:.2f}", (x1, y1 - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
             
-            # Simulando detecção de EPI (usaremos objetos alternativos do COCO para teste visual se necessário)
+            # Simulando detecção de EPI (usaremos objetos alternativos do COCO para teste visual)
             if label in ["backpack", "tie", "handbag"] and conf > 0.4:
                 detectou_epi = True
                 # Desenha retângulo verde para EPIs detectados
@@ -61,22 +59,19 @@ def run_inference(source_path=0):
                 cv2.putText(frame, "EPI OK", (x1, y1 - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-        # 5. Validação da Regra de Negócio Crítica (Lógica IoU / Presença)
+        # 5. Validação da Regra de Negócio Crítica (Lógica de Presença)
         # Se há uma pessoa na zona de risco mas nenhum EPI foi associado a ela:
         if detectou_pessoa and not detectou_epi:
             cv2.putText(frame, "ALERTA: INFRACAO DE EPI DETECTADA!", (30, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
         
-        # Salva o log no banco de dados SQLite local
-        registrar_infracao(
-            id_setor="SETOR_MONTAGEM_01",
-            id_camera="CAM_CFTV_04",
-            epi_ausente="Capacete/Colete",
-            confianca=conf
-        )
-            
-            # Aqui entraria a chamada de banco de dados: LOG_INFRAÇÃO_EPI
-            # print(f"[ALERTA BANCO DE DADOS] Registro gerado às {time.strftime('%X')} - EPI Ausente.")
+            # CORREÇÃO: Agora a gravação está dentro do bloco IF, executando apenas na infração
+            registrar_infracao(
+                id_setor="SETOR_MONTAGEM_01",
+                id_camera="CAM_CFTV_04",
+                epi_ausente="Capacete/Colete",
+                confianca=conf
+            )
 
         # 6. Exibe o painel de monitoramento na tela
         cv2.imshow("Painel HSE - Monitoramento de Visao Computacional por IA", frame)
@@ -91,5 +86,5 @@ def run_inference(source_path=0):
     print("[INFO] Sistema de monitoramento encerrado.")
 
 if __name__ == "__main__":
-    # Executa usando a WebCam local. Para testar com arquivo, mude para: run_inference("data/mock_video.mp4")
-    run_inference(source_path=0)
+    # Executa usando o arquivo de vídeo simulado da pasta data
+    run_inference(source_path="data/mock_video.mp4")
